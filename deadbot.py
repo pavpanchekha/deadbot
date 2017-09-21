@@ -112,8 +112,10 @@ class Deadlines:
     def upcoming(self, when):
         out = []
         for name, opts in self.deadlines.items():
-            out.append((name, min(filter(lambda conf: when < conf.when, opts), key=lambda x: x.when)))
-        return out
+            confs = list(filter(lambda conf: when < conf.when, opts))
+            if confs:
+                out.append((name, min(confs, key=lambda x: x.when)))
+        return sorted(out, key=lambda x: x[1].when)
 
 DATA = Deadlines()
 
