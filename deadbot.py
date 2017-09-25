@@ -122,8 +122,22 @@ DATA = Deadlines()
 def describe_who(who, conf):
     return ", ".join(["<@{}>".format(name) for name in who]) + " " + ("are" if len(who) > 1 else "is") + " submitting to " + conf.upper()
 
+def parse_uid(user):
+    assert user[0] == "<"
+    assert user[-1] == ">"
+    assert user[1] == "@"
+    return user[2:-1].split("|")[0]
+
 def handle(uid, args):
-    if args.match("set", __):
+    if args.match(__, "set", __):
+        user, conf = args.vars
+        uid = parse_uid(user)
+        try:
+            DATA.set(conf, datetime.now(), uid)
+            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+        except ValueError:
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+    elif args.match("set", __):
         conf, = args.vars
         try:
             DATA.set(conf, datetime.now(), uid)
@@ -156,7 +170,7 @@ def handle(uid, args):
 def help():
     return """I understand the following commands:
 
-• `/deadline set <conf>` — Declare that you are submitting to <conf>
+• `/deadline [@user] set <conf>` — Declare that you are submitting to <conf>
 • `/deadline add <conf> <YYYY-MM-DD> <HH:MM>` — Add a conference, with date and time
 • `/deadline who <conf>` — Who is submitting to <conf>
 
