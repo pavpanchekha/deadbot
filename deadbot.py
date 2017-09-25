@@ -157,14 +157,14 @@ def handle(uid, args):
         uid = parse_uid(user)
         try:
             DATA.unset(conf, datetime.now(), uid)
-            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+            return Ephemeral("Sorry to hear that.".format(uid, conf.upper()))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
     elif args.match("unset", __):
         conf, = args.vars
         try:
             DATA.unset(conf, datetime.now(), uid)
-            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+            return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf.upper()))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
     elif args.match("add", __, __, __):
