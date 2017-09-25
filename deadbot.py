@@ -98,6 +98,14 @@ class Deadlines:
         conf.who.add(uid)
         self.save()
 
+    def unset(self, name, when, uid):
+        opts = self.deadlines.setdefault(name.upper(), [])
+        confs = filter(lambda conf: when < conf.when, opts)
+        if not confs: raise ValueError
+        conf = min(confs, key=lambda x: x.when)
+        conf.who.remove(uid)
+        self.save()
+
     def add(self, name, when):
         self.deadlines.setdefault(name.upper(), []).append(Conference(when, set()))
         self.save()
@@ -141,6 +149,21 @@ def handle(uid, args):
         conf, = args.vars
         try:
             DATA.set(conf, datetime.now(), uid)
+            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+        except ValueError:
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+    elif args.match(__, "unset", __):
+        user, conf = args.vars
+        uid = parse_uid(user)
+        try:
+            DATA.unset(conf, datetime.now(), uid)
+            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+        except ValueError:
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+    elif args.match("unset", __):
+        conf, = args.vars
+        try:
+            DATA.unset(conf, datetime.now(), uid)
             return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
