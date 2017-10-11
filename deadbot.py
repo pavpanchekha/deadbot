@@ -54,8 +54,6 @@ class Ephemeral(str): pass
 class Response(str): pass
 
 class ns:
-    class Var: pass
-
     def __init__(self, args):
         self.args = args
 
@@ -64,7 +62,7 @@ class ns:
         if len(pat) != len(self.args):
             return False
         for val, arg in zip(pat, self.args):
-            if isinstance(val, ns.Var):
+            if isinstance(val, list):
                 out.append(arg)
             elif val == arg:
                 continue
@@ -72,8 +70,6 @@ class ns:
                 return False
         self.vars = out
         return True
-
-__ = ns.Var()
 
 Conference = collections.namedtuple("Conference", ["when", "who"])
 
@@ -89,6 +85,7 @@ class Deadlines:
         if os.path.exists("data.pickle"):
             with open("data.pickle", "rb") as fd:
                 self.deadlines = pickle.load(fd)
+                print("Loaded data about {} conferences".format(len(self.deadlines)))
 
     def set(self, name, when, uid):
         opts = self.deadlines.setdefault(name.upper(), [])
@@ -136,71 +133,99 @@ def parse_uid(user):
     assert user[1] == "@"
     return user[2:-1].split("|")[0]
 
+COMMANDS = []
+
 def handle(uid, args):
-    if args.match(__, "set", __):
-        user, conf = args.vars
-        uid = parse_uid(user)
+    for pattern, opts, f in COMMANDS:
+        if args.match(*pattern):
+            if opts["uid"]:
+                return f(uid, *args.vars)
+            else:
+                return f(*args.vars)
+    else:
+        return Ephemeral("I couldn't understand that command\n\n" + help())
+
+def command(*pattern, uid=False):
+    def decorator(f):
+        COMMANDS.append((pattern, { "uid": uid }, f))
+        return f
+    return decorator
+
+class Commands:
+    @command(["user"], "set", ["conf"])
+    def set_user(user, conf):
+        uid2 = parse_uid(user)
+        return set(uid2, conf)
+
+    @command("set", ["conf"], uid=True)
+    def set(uid, conf):
         try:
             DATA.set(conf, datetime.now(), uid)
             return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
-    elif args.match("set", __):
-        conf, = args.vars
-        try:
-            DATA.set(conf, datetime.now(), uid)
-            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
-        except ValueError:
-            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
-    elif args.match(__, "unset", __):
-        user, conf = args.vars
+
+    @command(["user"], "unset", ["conf"])
+    def unset_user(user, conf):
         uid = parse_uid(user)
         try:
             DATA.unset(conf, datetime.now(), uid)
-            return Ephemeral("Sorry to hear that.".format(uid, conf.upper()))
+            return Ephemeral("Sorry to hear that.")
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
-    elif args.match("unset", __):
-        conf, = args.vars
+
+    @command("unset", ["conf"], uid=True)
+    def unset(uid, conf):
         try:
             DATA.unset(conf, datetime.now(), uid)
             return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf.upper()))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
-    elif args.match("add", __, __, __):
-        conf, date, time = args.vars
+
+    @command("add", ["conf"], ["date"], ["time"], ["tz"])
+    def add_tz(conf, date, time, tz):
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
+        # offset = lookup_tz(tz) - lookup_tz("PT")
+        # when -= offset
         DATA.add(conf, when)
         return Ephemeral("Added {} on {} at {}".format(conf, when.strftime("%d %b"), when.strftime("%H:%M")))
-    elif args.match("upcoming"):
+
+    @command("add", ["conf"], ["date"], ["time"])
+    def add(conf, date, time):
+        return add_tz(conf, date, time, "PT")
+
+    @command("upcoming")
+    def upcoming():
         upcoming = DATA.upcoming(datetime.now())
         return Response("The following deadlines are coming up: " + ", ".join([
             "{} on {}".format(name, conf.when.strftime("%d %b")) for name, conf in upcoming
         ]))
-    elif args.match("who", __):
-        conf, = args.vars
+
+    @command("who", ["conf"])
+    def who(conf):
         who = DATA.who(conf, datetime.now())
         return Ephemeral(describe_who(who, conf))
-    elif args.match("announce", __):
-        conf, = args.vars
+
+    @command("announce", ["conf"])
+    def announce(conf):
         who = DATA.who(conf, datetime.now())
         return Response(describe_who(who, conf))
-    elif args.match("help"):
+
+    @command("help")
+    def help():
         return Ephemeral(help())
-    else:
-        return Ephemeral("I couldn't understand that command\n\n" + help())
 
 def help():
     return """I understand the following commands:
 
-• `/deadline [@user] set <conf>` — Declare that you are submitting to <conf>
-• `/deadline add <conf> <YYYY-MM-DD> <HH:MM>` — Add a conference, with date and time
-• `/deadline who <conf>` — Who is submitting to <conf>
+• `/deadline [@USER] set CONF` — Declare that you are submitting to <conf>
+• `/deadline add CONF YYYY-MM-DD HH:MM` — Add a conference, with date and time
+• `/deadline who CONF` — Who is submitting to <conf>
 
 Public announcement commands:
 
 • `/deadline upcoming` — List upcoming deadlines
-• `/deadline announce <conf>` — Announce who is submitting to <conf>
+• `/deadline announce CONF` — Announce who is submitting to <conf>
 """
 
 if __name__ == "__main__":
