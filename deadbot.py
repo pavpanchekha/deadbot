@@ -5,7 +5,7 @@ import json
 import codecs
 import shlex
 import argparse
-from datetime import datetime
+from datetime import datetime, timedelta
 import collections
 import pickle
 import os
@@ -151,11 +151,22 @@ def command(*pattern, uid=False):
         return f
     return decorator
 
+def lookup_tz(tz):
+    offset = {
+        # US time zones are hour-aligned; server is in Pacific time zone
+        "PT": (datetime.now() - datetime.utcnow()),
+        "MT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3600),
+        "CT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=2*3600),
+        "ET": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3*3600),
+        "AOE": timedelta(seconds=-12 * 3600),
+    }[tz]
+    return timedelta(seconds=round(offset.total_seconds()))
+
 class Commands:
     @command(["user"], "set", ["conf"])
     def set_user(user, conf):
         uid2 = parse_uid(user)
-        return set(uid2, conf)
+        return Commands.set(uid2, conf)
 
     @command("set", ["conf"], uid=True)
     def set(uid, conf):
@@ -185,14 +196,14 @@ class Commands:
     @command("add", ["conf"], ["date"], ["time"], ["tz"])
     def add_tz(conf, date, time, tz):
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
-        # offset = lookup_tz(tz) - lookup_tz("PT")
-        # when -= offset
+        offset = lookup_tz(tz) - lookup_tz("PT")
+        when -= offset
         DATA.add(conf, when)
         return Ephemeral("Added {} on {} at {}".format(conf, when.strftime("%d %b"), when.strftime("%H:%M")))
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
-        return add_tz(conf, date, time, "PT")
+        return Commands.add_tz(conf, date, time, "PT")
 
     @command("upcoming")
     def upcoming():
