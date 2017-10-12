@@ -9,6 +9,8 @@ from datetime import datetime, timedelta
 import collections
 import pickle
 import os
+import threading
+import contextlib
 
 HOOK = "https://hooks.slack.com/services/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"
 TOKEN = "NZLjPrrU9rlVvdHsrILIsD4J"
@@ -37,7 +39,11 @@ class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
 
         uid = data["user_id"][0]
         args = ns(shlex.split(data["text"][0]))
-        response = handle(uid, args)
+
+        with DATA.lock():
+            response = handle(uid, args)
+        assert DATA.unlocked()
+
         if response:
             self.wfile.write(json.dumps({
                 "response_type": "in_channel" if isinstance(response, Response) else "ephemeral",
@@ -71,11 +77,25 @@ class ns:
         self.vars = out
         return True
 
-Conference = collections.namedtuple("Conference", ["when", "who"])
+Conference = collections.namedtuple("Conference", ["when", "who", "announcements"])
 
 class Deadlines:
     def __init__(self):
-        self.deadlines = {}
+        self.deadlines = None
+        self._deadlines = {}
+        self._lock = threading.Lock()
+
+    @contextlib.contextmanager
+    def lock(self):
+        self._lock.acquire()
+        self.deadlines = self._deadlines
+        yield
+        self._deadlines = self.deadlines
+        self.deadlines = None
+        self._lock.release()
+
+    def unlocked(self):
+        return not self.deadlines
 
     def save(self):
         with open("data.pickle", "wb") as fd:
@@ -104,7 +124,17 @@ class Deadlines:
         self.save()
 
     def add(self, name, when):
-        self.deadlines.setdefault(name.upper(), []).append(Conference(when, set()))
+        self.deadlines.setdefault(name.upper(), []).append(Conference(when, set(), []))
+        self.save()
+
+    def modify(self, name, when):
+        opts = self.deadlines.setdefault(name.upper(), [])
+        confs = filter(lambda conf: when < conf.when, opts)
+        if not confs: raise ValueError
+        conf = min(confs, key=lambda x: x.when)
+
+        i = self.deadlines[name.upper()].index(conf)
+        self.deadlines[name.upper()][i] = Conference(when, conf.who, conf.announcements)
         self.save()
 
     def who(self, name, when):
@@ -121,6 +151,13 @@ class Deadlines:
             if confs:
                 out.append((name, min(confs, key=lambda x: x.when)))
         return sorted(out, key=lambda x: x[1].when)
+
+    def all(self):
+        out = []
+        for name, opts in self.deadlines.items():
+            for opt in opts:
+                out.append((name, opt))
+        return out
 
 DATA = Deadlines()
 
@@ -165,6 +202,44 @@ def lookup_tz(tz):
         }[tz]
         return timedelta(seconds=round(offset.total_seconds()))
 
+def new_announcements():
+    now = datetime.now()
+    announce_days = [28, 21, 14, 7, 6, 5, 4, 3, 2, 1]
+    out = []
+    for name, conf in DATA.all():
+        if conf.when < now: continue
+        if conf.when > now + timedelta(days=28): continue
+        announce = False
+        for days in announce_days:
+            if conf.when < now + timedelta(days=days) \
+               and days not in conf.announcements:
+                announce = True
+                conf.announcements.append(days)
+        if announce:
+            out.append((name, conf))
+    return out
+
+def make_announcements():
+    now = datetime.now()
+    for name, conf in new_announcements():
+        print("Announcing", name, "on", conf.when)
+        post("{} is in {} days! Good luck {}".format(
+            name, round((now - conf.when) / timedelta(days=1)),
+            ", ".join(["<@{}>".format(uid) for uid in conf.who])))
+
+def start_announcement_thread():
+    with DATA.lock():
+        try:
+            make_announcements()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+
+    assert DATA.unlocked()
+
+    FREQUENCY = 5 #60 * 60
+    threading.Timer(FREQUENCY, start_announcement_thread).start()
+
 class Commands:
     @command(["user"], "set", ["conf"])
     def set_user(user, conf):
@@ -208,6 +283,18 @@ class Commands:
     def add(conf, date, time):
         return Commands.add_tz(conf, date, time, "PT")
 
+    @command("modify", ["conf"], ["date"], ["time"], ["tz"])
+    def modify_tz(conf, date, time, tz):
+        when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
+        offset = lookup_tz(tz) - lookup_tz("PT")
+        when -= offset
+        DATA.modify(conf, when)
+        return Ephemeral("Added {} on {} at {}".format(conf, when.strftime("%d %b"), when.strftime("%H:%M")))
+
+    @command("modify", ["conf"], ["date"], ["time"])
+    def modify(conf, date, time):
+        return Commands.modify_tz(conf, date, time, "PT")
+
     @command("upcoming")
     def upcoming():
         upcoming = DATA.upcoming(datetime.now())
@@ -233,7 +320,8 @@ def help():
     return """I understand the following commands:
 
 • `/deadline [@USER] set CONF` — Declare that you are submitting to <conf>
-• `/deadline add CONF YYYY-MM-DD HH:MM [TZ]` — Add a conference, with date, time, optional time zone
+• `/deadline add CONF YYYY-MM-DD HH:MM [TZ]` — Add a conference, with date/time/timezone
+• `/deadline modify CONF YYYY-MM-DD HH:MM [TZ]` — Modify a conference
 • `/deadline who CONF` — Who is submitting to <conf>
 
 Public announcement commands:
@@ -243,8 +331,13 @@ Public announcement commands:
 """
 
 if __name__ == "__main__":
-    DATA.load()
+    with DATA.lock():
+        DATA.load()
+    assert DATA.unlocked()
+
     try:
+        start_announcement_thread()
         start_server()
     finally:
-        DATA.save()
+        with DATA.lock():
+            DATA.save()
