@@ -152,15 +152,18 @@ def command(*pattern, uid=False):
     return decorator
 
 def lookup_tz(tz):
-    offset = {
-        # US time zones are hour-aligned; server is in Pacific time zone
-        "PT": (datetime.now() - datetime.utcnow()),
-        "MT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3600),
-        "CT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=2*3600),
-        "ET": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3*3600),
-        "AOE": timedelta(seconds=-12 * 3600),
-    }[tz]
-    return timedelta(seconds=round(offset.total_seconds()))
+    try:
+        return timedelta(seconds=int(tz)*3600)
+    except ValueError:
+        offset = {
+            # US time zones are hour-aligned; server is in Pacific time zone
+            "PT": (datetime.now() - datetime.utcnow()),
+            "MT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3600),
+            "CT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=2*3600),
+            "ET": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3*3600),
+            "AOE": timedelta(seconds=-12 * 3600),
+        }[tz]
+        return timedelta(seconds=round(offset.total_seconds()))
 
 class Commands:
     @command(["user"], "set", ["conf"])
@@ -230,7 +233,7 @@ def help():
     return """I understand the following commands:
 
 • `/deadline [@USER] set CONF` — Declare that you are submitting to <conf>
-• `/deadline add CONF YYYY-MM-DD HH:MM` — Add a conference, with date and time
+• `/deadline add CONF YYYY-MM-DD HH:MM [TZ]` — Add a conference, with date, time, optional time zone
 • `/deadline who CONF` — Who is submitting to <conf>
 
 Public announcement commands:
