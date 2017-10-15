@@ -224,7 +224,7 @@ def make_announcements():
     for name, conf in new_announcements():
         print("Announcing", name, "on", conf.when)
         post("{} is in {} days! Good luck {}".format(
-            name, round((now - conf.when) / timedelta(days=1)),
+            name, round((conf.when - now) / timedelta(days=1)),
             ", ".join(["<@{}>".format(uid) for uid in conf.who])))
 
 def start_announcement_thread():
