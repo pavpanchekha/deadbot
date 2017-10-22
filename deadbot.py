@@ -204,11 +204,11 @@ def lookup_tz(tz):
 
 def new_announcements():
     now = datetime.now()
-    announce_days = [28, 21, 14, 7, 6, 5, 4, 3, 2, 1]
+    announce_days = [28, 21, 14, 7, 6, 5, 4, 3, 2, 1, 0]
     out = []
     for name, conf in DATA.all():
         if conf.when < now: continue
-        if conf.when > now + timedelta(days=28): continue
+        if conf.when > now + timedelta(days=max(announce_days)): continue
         announce = False
         for days in announce_days:
             if conf.when < now + timedelta(days=days) \
@@ -223,9 +223,12 @@ def make_announcements():
     now = datetime.now()
     for name, conf in new_announcements():
         print("Announcing", name, "on", conf.when)
-        post("{} is in {} days! Good luck {}".format(
-            name, round((conf.when - now) / timedelta(days=1)),
-            ", ".join(["<@{}>".format(uid) for uid in conf.who])))
+        delta = round((conf.when - now) / timedelta(days=1))
+        who = ", ".join(["<@{}>".format(uid) for uid in conf.who])
+        if delta == 0:
+            post("{} dealine! Congrats to everyone who submitted!".format(name))
+        else:
+            post("{} is in {} days! Good luck {}".format(name, delta, who))
 
 def start_announcement_thread():
     with DATA.lock():
