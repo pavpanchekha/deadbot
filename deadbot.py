@@ -231,6 +231,9 @@ def new_announcements():
             out.append((name, conf))
     return out
 
+def days(n):
+    return ("1 day" if n == 1 else "{} days".format(n))
+
 def make_announcements():
     now = datetime.now()
     for name, conf in new_announcements():
@@ -240,7 +243,7 @@ def make_announcements():
         if delta == 0:
             post("{} dealine! Congrats to everyone who submitted!".format(name))
         else:
-            post("{} is in {} days! Good luck {}".format(name, delta, who))
+            post("{} is in {}! Good luck {}".format(name, days(delta), who))
 
 def start_announcement_thread():
     with DATA.lock():
@@ -315,8 +318,8 @@ class Commands:
     def upcoming():
         upcoming = DATA.upcoming(datetime.now())
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {} ({} days)".format(
-                name, conf.when.strftime("%d %b"), round((conf.when - datetime.now()) / timedelta(days=1))
+            "{} on {} ({})".format(
+                name, conf.when.strftime("%d %b"), days(round((conf.when - datetime.now()) / timedelta(days=1)))
             ) for name, conf in upcoming
         ]))
 
