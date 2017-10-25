@@ -257,7 +257,7 @@ def start_announcement_thread():
     assert DATA.unlocked()
 
     FREQUENCY = 5 #60 * 60
-    threading.Timer(FREQUENCY, start_announcement_thread).start()
+    return threading.Timer(FREQUENCY, start_announcement_thread).start()
 
 class Commands:
     @command(["user"], "set", ["conf"])
@@ -362,8 +362,11 @@ if __name__ == "__main__":
     assert DATA.unlocked()
 
     try:
-        start_announcement_thread()
-        start_server()
+        announce_thread = start_announcement_thread()
+        try:
+            start_server()
+        except KeyboardInterrupt:
+            announce_thread.cancel()
     finally:
         with DATA.lock():
             DATA.save()
