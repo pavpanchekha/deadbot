@@ -315,7 +315,9 @@ class Commands:
     def upcoming():
         upcoming = DATA.upcoming(datetime.now())
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {}".format(name, conf.when.strftime("%d %b")) for name, conf in upcoming
+            "{} on {} ({} days)".format(
+                name, conf.when.strftime("%d %b"), round((conf.when - datetime.now()) / timedelta(days=1))
+            ) for name, conf in upcoming
         ]))
 
     @command("who", ["conf"])
