@@ -41,7 +41,12 @@ class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
         args = ns(shlex.split(data["text"][0]))
 
         with DATA.lock():
-            response = handle(uid, args)
+            try:
+                response = handle(uid, args)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                response = Ephemeral("*" + type(e).__name__ + "*: " + str(e))
         assert DATA.unlocked()
 
         if response:
