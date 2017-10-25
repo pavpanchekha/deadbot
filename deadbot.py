@@ -144,6 +144,13 @@ class Deadlines:
         conf = min(confs, key=lambda x: x.when)
         return conf.who
 
+    def when(self, name, when):
+        opts = self.deadlines.setdefault(name.upper(), [])
+        confs = filter(lambda conf: when < conf.when, opts)
+        if not confs: raise ValueError
+        conf = min(confs, key=lambda x: x.when)
+        return conf.when
+
     def upcoming(self, when):
         out = []
         for name, opts in self.deadlines.items():
@@ -292,7 +299,7 @@ class Commands:
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
         DATA.modify(conf, when)
-        return Ephemeral("Added {} on {} at {}".format(conf, when.strftime("%d %b"), when.strftime("%H:%M")))
+        return Ephemeral("Added {} on {}".format(conf, when.strftime("%d %b at %H:%M")))
 
     @command("modify", ["conf"], ["date"], ["time"])
     def modify(conf, date, time):
@@ -309,6 +316,11 @@ class Commands:
     def who(conf):
         who = DATA.who(conf, datetime.now())
         return Ephemeral(describe_who(who, conf))
+
+    @command("when", ["conf"])
+    def when(conf):
+        when = DATA.when(conf, datetime.now())
+        return Ephemeral("{} is on {}".format(conf.upper(), when.strftime("%d %b at %H:%M")))
 
     @command("announce", ["conf"])
     def announce(conf):
