@@ -244,6 +244,7 @@ def start_announcement_thread():
         except Exception as e:
             import traceback
             traceback.print_exc()
+        DATA.save()
 
     assert DATA.unlocked()
 
