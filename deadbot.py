@@ -256,8 +256,10 @@ def start_announcement_thread():
 
     assert DATA.unlocked()
 
-    FREQUENCY = 5 #60 * 60
-    return threading.Timer(FREQUENCY, start_announcement_thread).start()
+    FREQUENCY = 60 * 60
+    timer = threading.Timer(FREQUENCY, start_announcement_thread)
+    timer.start()
+    return timer
 
 class Commands:
     @command(["user"], "set", ["conf"])
