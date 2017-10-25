@@ -187,7 +187,7 @@ COMMANDS = []
 def handle(uid, args):
     for pattern, opts, f in COMMANDS:
         if args.match(*pattern):
-            print(" ".join(args), "(executing in ", f.__name__, ")")
+            print(" ".join(args.args), "(executing in {})".format(f.__name__))
             if opts["uid"]:
                 return f(uid, *args.vars)
             else:
