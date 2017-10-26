@@ -195,9 +195,9 @@ def handle(uid, args):
     else:
         return Ephemeral("I couldn't understand that command\n\n" + help())
 
-def command(*pattern, uid=False):
+def command(*pattern, uid=False, public=False):
     def decorator(f):
-        COMMANDS.append((pattern, { "uid": uid }, f))
+        COMMANDS.append((pattern, { "uid": uid, "public": public }, f))
         return f
     return decorator
 
@@ -265,11 +265,13 @@ def start_announcement_thread():
 class Commands:
     @command(["user"], "set", ["conf"])
     def set_user(user, conf):
+        """Declare that someone is submitting to a conference"""
         uid2 = parse_uid(user)
         return Commands.set(uid2, conf)
 
     @command("set", ["conf"], uid=True)
     def set(uid, conf):
+        """Declare that you are submitting to a conference"""
         try:
             DATA.set(conf, datetime.now(), uid)
             return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
@@ -278,6 +280,7 @@ class Commands:
 
     @command(["user"], "unset", ["conf"])
     def unset_user(user, conf):
+        """Declare that someone is no longer submitting to a conference"""
         uid = parse_uid(user)
         try:
             DATA.unset(conf, datetime.now(), uid)
@@ -287,6 +290,7 @@ class Commands:
 
     @command("unset", ["conf"], uid=True)
     def unset(uid, conf):
+        """Declare that you are no longer submitting to a conference"""
         try:
             DATA.unset(conf, datetime.now(), uid)
             return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf.upper()))
@@ -295,6 +299,7 @@ class Commands:
 
     @command("add", ["conf"], ["date"], ["time"], ["tz"])
     def add_tz(conf, date, time, tz):
+        """Add a conference"""
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
@@ -303,10 +308,12 @@ class Commands:
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
+        """Add a conference"""
         return Commands.add_tz(conf, date, time, "PT")
 
     @command("modify", ["conf"], ["date"], ["time"], ["tz"])
     def modify_tz(conf, date, time, tz):
+        """Change when a conference is"""
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
@@ -315,10 +322,24 @@ class Commands:
 
     @command("modify", ["conf"], ["date"], ["time"])
     def modify(conf, date, time):
+        """Change when a conference is"""
         return Commands.modify_tz(conf, date, time, "PT")
 
-    @command("upcoming")
+    @command("when", ["conf"])
+    def when(conf):
+        """When is a conference?"""
+        when = DATA.when(conf, datetime.now())
+        return Ephemeral("{} is on {}".format(conf.upper(), when.strftime("%d %b at %H:%M")))
+
+    @command("who", ["conf"])
+    def who(conf):
+        """Who is submitting to a conference?"""
+        who = DATA.who(conf, datetime.now())
+        return Ephemeral(describe_who(who, conf))
+
+    @command("upcoming", public=True)
     def upcoming():
+        """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.now())
         return Response("The following deadlines are coming up: " + ", ".join([
             "{} on {} ({})".format(
@@ -326,18 +347,9 @@ class Commands:
             ) for name, conf in upcoming
         ]))
 
-    @command("who", ["conf"])
-    def who(conf):
-        who = DATA.who(conf, datetime.now())
-        return Ephemeral(describe_who(who, conf))
-
-    @command("when", ["conf"])
-    def when(conf):
-        when = DATA.when(conf, datetime.now())
-        return Ephemeral("{} is on {}".format(conf.upper(), when.strftime("%d %b at %H:%M")))
-
-    @command("announce", ["conf"])
+    @command("announce", ["conf"], public=True)
     def announce(conf):
+        """Announce who is submitting to a conference"""
         who = DATA.who(conf, datetime.now())
         return Response(describe_who(who, conf))
 
@@ -345,21 +357,35 @@ class Commands:
     def help():
         return Ephemeral(help())
 
+FORMATS = {
+    "user": "@USER",
+    "date": "YYYY-MM-DD",
+    "time": "HH:MM",
+}
+
 def help():
-    return """I understand the following commands:
-
-• `/deadline [@USER] set CONF` — Declare that you are submitting to <conf>
-• `/deadline add CONF YYYY-MM-DD HH:MM [TZ]` — Add a conference, with date/time/timezone
-• `/deadline modify CONF YYYY-MM-DD HH:MM [TZ]` — Modify a conference
-• `/deadline who CONF` — Who is submitting to <conf>
-
-Public announcement commands:
-
-• `/deadline upcoming` — List upcoming deadlines
-• `/deadline announce CONF` — Announce who is submitting to <conf>
-"""
+    private = "I understand the following commands:\n\n"
+    public = "Public announcement commands:\n\n"
+    for pattern, opts, f in COMMANDS:
+        if not f.__doc__: continue
+        s = "• `/deadline "
+        for val in pattern:
+            if isinstance(val, list):
+                s += FORMATS.get(val[0], val[0].upper())
+            else:
+                s += val
+            s += " "
+        s += "` — " + str(f.__doc__) + "\n"
+        if opts["public"]:
+            public += s
+        else:
+            private += s
+    return private + "\n" + public
 
 if __name__ == "__main__":
+    print(help())
+    import sys
+    sys.exit()
     with DATA.lock():
         DATA.load()
     assert DATA.unlocked()
