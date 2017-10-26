@@ -113,7 +113,7 @@ class Deadlines:
                 print("Loaded data about {} conferences".format(len(self.deadlines)))
 
     def set(self, name, when, uid):
-        opts = self.deadlines.setdefault(name.upper(), [])
+        opts = self.deadlines.setdefault(name, [])
         confs = filter(lambda conf: when < conf.when, opts)
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
@@ -121,7 +121,7 @@ class Deadlines:
         self.save()
 
     def unset(self, name, when, uid):
-        opts = self.deadlines.setdefault(name.upper(), [])
+        opts = self.deadlines.setdefault(name, [])
         confs = filter(lambda conf: when < conf.when, opts)
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
@@ -129,28 +129,28 @@ class Deadlines:
         self.save()
 
     def add(self, name, when):
-        self.deadlines.setdefault(name.upper(), []).append(Conference(when, set(), []))
+        self.deadlines.setdefault(name, []).append(Conference(when, set(), []))
         self.save()
 
     def modify(self, name, when):
-        opts = self.deadlines.setdefault(name.upper(), [])
+        opts = self.deadlines.setdefault(name, [])
         confs = filter(lambda conf: when < conf.when, opts)
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
 
-        i = self.deadlines[name.upper()].index(conf)
-        self.deadlines[name.upper()][i] = Conference(when, conf.who, conf.announcements)
+        i = self.deadlines[name].index(conf)
+        self.deadlines[name][i] = Conference(when, conf.who, conf.announcements)
         self.save()
 
     def who(self, name, when):
-        opts = self.deadlines.setdefault(name.upper(), [])
+        opts = self.deadlines.setdefault(name, [])
         confs = filter(lambda conf: when < conf.when, opts)
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
         return conf.who
 
     def when(self, name, when):
-        opts = self.deadlines.setdefault(name.upper(), [])
+        opts = self.deadlines.setdefault(name, [])
         confs = filter(lambda conf: when < conf.when, opts)
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
@@ -174,7 +174,7 @@ class Deadlines:
 DATA = Deadlines()
 
 def describe_who(who, conf):
-    return ", ".join(["<@{}>".format(name) for name in who]) + " " + ("are" if len(who) > 1 else "is") + " submitting to " + conf.upper()
+    return ", ".join(["<@{}>".format(name) for name in who]) + " " + ("are" if len(who) > 1 else "is") + " submitting to " + conf_name(conf)
 
 def parse_uid(user):
     assert user[0] == "<"
@@ -235,6 +235,9 @@ def new_announcements():
 def days(n):
     return ("1 day" if n == 1 else "{} days".format(n))
 
+def conf_name(conf):
+    return conf.upper() if conf.islower() else conf
+
 def make_announcements():
     now = datetime.now()
     for name, conf in new_announcements():
@@ -272,34 +275,38 @@ class Commands:
     @command("set", ["conf"], uid=True)
     def set(uid, conf):
         """Declare that you are submitting to a conference"""
+        conf = conf_name(conf)
         try:
             DATA.set(conf, datetime.now(), uid)
-            return Response("Good luck, <@{}>, on {}!".format(uid, conf.upper()))
+            return Response("Good luck, <@{}>, on {}!".format(uid, conf))
         except ValueError:
-            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
 
     @command(["user"], "unset", ["conf"])
     def unset_user(user, conf):
         """Declare that someone is no longer submitting to a conference"""
         uid = parse_uid(user)
+        conf = conf_name(conf)
         try:
             DATA.unset(conf, datetime.now(), uid)
             return Ephemeral("Sorry to hear that.")
         except ValueError:
-            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
 
     @command("unset", ["conf"], uid=True)
     def unset(uid, conf):
         """Declare that you are no longer submitting to a conference"""
+        conf = conf_name(conf)
         try:
             DATA.unset(conf, datetime.now(), uid)
-            return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf.upper()))
+            return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf))
         except ValueError:
-            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf.upper()))
+            return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
 
     @command("add", ["conf"], ["date"], ["time"], ["tz"])
     def add_tz(conf, date, time, tz):
         """Add a conference"""
+        conf = conf_name(conf)
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
@@ -314,6 +321,7 @@ class Commands:
     @command("modify", ["conf"], ["date"], ["time"], ["tz"])
     def modify_tz(conf, date, time, tz):
         """Change when a conference is"""
+        conf = conf_name(conf)
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
@@ -328,12 +336,14 @@ class Commands:
     @command("when", ["conf"])
     def when(conf):
         """When is a conference?"""
+        conf = conf_name(conf)
         when = DATA.when(conf, datetime.now())
-        return Ephemeral("{} is on {}".format(conf.upper(), when.strftime("%d %b at %H:%M")))
+        return Ephemeral("{} is on {}".format(conf, when.strftime("%d %b at %H:%M")))
 
     @command("who", ["conf"])
     def who(conf):
         """Who is submitting to a conference?"""
+        conf = conf_name(conf)
         who = DATA.who(conf, datetime.now())
         return Ephemeral(describe_who(who, conf))
 
@@ -350,6 +360,7 @@ class Commands:
     @command("announce", ["conf"], public=True)
     def announce(conf):
         """Announce who is submitting to a conference"""
+        conf = conf_name(conf)
         who = DATA.who(conf, datetime.now())
         return Response(describe_who(who, conf))
 
@@ -383,9 +394,6 @@ def help():
     return private + "\n" + public
 
 if __name__ == "__main__":
-    print(help())
-    import sys
-    sys.exit()
     with DATA.lock():
         DATA.load()
     assert DATA.unlocked()
