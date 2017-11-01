@@ -222,6 +222,7 @@ def new_announcements():
     for name, conf in DATA.all():
         if conf.when < now: continue
         if conf.when > now + timedelta(days=max(announce_days)): continue
+        if not conf.who: continue
         announce = False
         for days in announce_days:
             if conf.when < now + timedelta(days=days) \
