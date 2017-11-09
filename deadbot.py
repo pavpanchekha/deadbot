@@ -110,6 +110,12 @@ class Deadlines:
         self.deadlines = None
         self._lock.release()
 
+    def un_tz(self, conf):
+        return Conference(conf.when - lookup_tz("PT"), conf.who, conf.announcements)
+
+    def tz(self, conf):
+        return Conference(conf.when + lookup_tz("PT"), conf.who, conf.announcements)
+
     def unlocked(self):
         return not self.deadlines
 
@@ -125,7 +131,7 @@ class Deadlines:
 
     def set(self, name, when, uid):
         opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, opts)
+        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
         conf.who.add(uid)
@@ -133,36 +139,36 @@ class Deadlines:
 
     def unset(self, name, when, uid):
         opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, opts)
+        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
         conf.who.remove(uid)
         self.save()
 
     def add(self, name, when):
-        self.deadlines.setdefault(name, []).append(Conference(when, set(), []))
+        self.deadlines.setdefault(name, []).append(self.un_tz(Conference(when, set(), [])))
         self.save()
 
     def modify(self, name, when):
         opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, opts)
+        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
 
         i = self.deadlines[name].index(conf)
-        self.deadlines[name][i] = Conference(when, conf.who, conf.announcements)
+        self.deadlines[name][i] = self.un_tz(Conference(when, conf.who, conf.announcements))
         self.save()
 
     def who(self, name, when):
         opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, opts)
+        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
         return conf.who
 
     def when(self, name, when):
         opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, opts)
+        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
         if not confs: raise ValueError
         conf = min(confs, key=lambda x: x.when)
         return conf.when
@@ -170,7 +176,7 @@ class Deadlines:
     def upcoming(self, when):
         out = []
         for name, opts in self.deadlines.items():
-            confs = list(filter(lambda conf: when < conf.when, opts))
+            confs = list(filter(lambda conf: when < conf.when, map(self.tz, opts)))
             if confs:
                 out.append((name, min(confs, key=lambda x: x.when)))
         return sorted(out, key=lambda x: x[1].when)
@@ -179,7 +185,7 @@ class Deadlines:
         out = []
         for name, opts in self.deadlines.items():
             for opt in opts:
-                out.append((name, opt))
+                out.append((name, self.tz(opt)))
         return out
 
 DATA = Deadlines()
