@@ -15,13 +15,24 @@ import contextlib
 HOOK = "https://hooks.slack.com/services/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"
 TOKEN = "NZLjPrrU9rlVvdHsrILIsD4J"
 
-def post(msg : str):
+def to_slack(msg : str):
     req = urllib.request.Request(HOOK, data=json.dumps({"text": msg}).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
     with urllib.request.urlopen(req, timeout=15) as res:
         if res.getcode() == 200:
             return
         else:
             raise IOError("Scary reponse from Slack", res)
+
+def to_sign(file, **args):
+    with open(file, "rt") as f:
+        code = f.read().format(**args)
+    URL = "http://plseaudio.cs.washington.edu:8082/run"
+    req = urllib.request.Request(url=URL, data=code.encode("utf-8"), method="PUT")
+    with urllib.request.urlopen(req, timeout=15) as res:
+        if res.getcode() == 200:
+            return
+        else:
+            raise IOError("Scary reponse from PLSE Sign", res)
 
 class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
@@ -246,9 +257,9 @@ def make_announcements():
         delta = round((conf.when - now) / timedelta(days=1))
         who = ", ".join(["<@{}>".format(uid) for uid in conf.who])
         if delta == 0:
-            post("{} dealine! Congrats to everyone who submitted!".format(name))
+            to_slack("{} dealine! Congrats to everyone who submitted!".format(name))
         else:
-            post("{} is in {}! Good luck {}".format(name, days(delta), who))
+            to_slack("{} is in {}! Good luck {}".format(name, days(delta), who))
 
 def start_announcement_thread():
     with DATA.lock():
@@ -364,6 +375,14 @@ class Commands:
         conf = conf_name(conf)
         who = DATA.who(conf, datetime.now())
         return Response(describe_who(who, conf))
+
+    @command("sign", ["conf"], public=True)
+    def sign(conf):
+        """Announce who is submitting to a conference"""
+        conf = conf_name(conf)
+        when = DATA.when(conf, datetime.now())
+        to_sign("countdown.py.tmpl", conference=conf, time=when)
+        return Ephemeral("{} on {} ({}) sent to sign!".format(conf, when.strftime("%d %b at %H:%M"), days(round((when - datetime.now()) / timedelta(days=1)))))
 
     @command("help")
     def help():

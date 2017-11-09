@@ -1,0 +1,65 @@
+# This file is a template. It is expanded by `deadbot.py` and run on the LED sign.
+# It is not imported or run by `deadbot` itself.
+
+# Configuration
+
+WHAT = '{conference}'
+WHEN = '{time:%Y-%m-%d %H:%M:%S}'
+
+##########################
+
+from datetime import datetime
+import sys
+import time
+
+from sign.raw import init_device
+from sign.raw.device import Device
+from sign.raw.objects import *
+
+def unix_time(t):
+    '''Convert time.struct_time to a Unix timestamp in GMT timezone.'''
+    return int(time.mktime(t))
+
+def unix_now():
+    return int(unix_time(time.localtime()))
+
+
+class CenteredText:
+    def __init__(self, D, ts, pal, tw, y, text):
+        self.map = ByteArray.new(D, [b - 32 for b in text.encode('ascii')])
+        x = (64 - tw * len(text)) // 2
+        self.layer = TiledLayer.new(D, pal, self.map, ts, x, y, len(text), 1)
+        self.addr = self.layer.addr
+
+
+if __name__ == '__main__':
+    when = unix_time(time.strptime(WHEN, '%Y-%m-%d %H:%M:%S'))
+
+    D = init_device(sys.argv[1:])
+
+    ts = D.static['TorusSans_ts']
+    pal = D.static['TorusSans_pal']
+
+    name_text = CenteredText(D, ts, pal, 8, 8, WHAT)
+    countdown_text = None
+
+    stack = LayerStack.new(D, [name_text, countdown_text])
+    D.output_layer.set(stack)
+
+    while True:
+        delta = max(0, when - unix_now())
+        d = int(delta // 86400)
+        h = int(delta // 3600) % 24
+        m = int(delta // 60) % 60
+        s = int(delta) % 60
+
+        if d >= 3:
+            countdown = '%dd %02dh' % (d, h)
+        else:
+            countdown = '%02d:%02d' % (h, m)
+
+        countdown_text = CenteredText(D, ts, pal, 8, 16, countdown)
+        stack[1].set(countdown_text)
+
+        now = datetime.now()
+        time.sleep(1 - now.microsecond / 1000000)
