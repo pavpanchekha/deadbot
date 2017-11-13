@@ -57,7 +57,7 @@ class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 import traceback
                 traceback.print_exc()
-                response = Ephemeral("*" + type(e).__name__ + "*: " + str(e))
+                response = Ephemeral("*{}*: {}".format(type(e).__name__, e))
         assert DATA.unlocked()
 
         if response:
@@ -129,20 +129,18 @@ class Deadlines:
                 self.deadlines = pickle.load(fd)
                 print("Loaded data about {} conferences".format(len(self.deadlines)))
 
+    def get_conf(self, name, when):
+        opts = self.deadlines.get(name, [])
+        confs = [self.tz(conf) for conf in opts if when < conf.when]
+        if not confs: raise KeyError("No conference {}".format(name))
+        return min(confs, key=lambda x: x.when)
+
     def set(self, name, when, uid):
-        opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
-        if not confs: raise ValueError
-        conf = min(confs, key=lambda x: x.when)
-        conf.who.add(uid)
+        self.get_conf(name, when).who.add(uid)
         self.save()
 
     def unset(self, name, when, uid):
-        opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
-        if not confs: raise ValueError
-        conf = min(confs, key=lambda x: x.when)
-        conf.who.remove(uid)
+        self.get_conf(name, when).who.remove(uid)
         self.save()
 
     def add(self, name, when):
@@ -150,28 +148,16 @@ class Deadlines:
         self.save()
 
     def modify(self, name, when):
-        opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
-        if not confs: raise ValueError
-        conf = min(confs, key=lambda x: x.when)
-
+        conf = self.get_conf(name, when)
         i = self.deadlines[name].index(conf)
         self.deadlines[name][i] = self.un_tz(Conference(when, conf.who, conf.announcements))
         self.save()
 
     def who(self, name, when):
-        opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
-        if not confs: raise ValueError
-        conf = min(confs, key=lambda x: x.when)
-        return conf.who
+        return self.get_conf(name, when).who
 
     def when(self, name, when):
-        opts = self.deadlines.setdefault(name, [])
-        confs = filter(lambda conf: when < conf.when, map(self.tz, opts))
-        if not confs: raise ValueError
-        conf = min(confs, key=lambda x: x.when)
-        return conf.when
+        return self.get_conf(name, when).when
 
     def upcoming(self, when):
         out = []
@@ -250,7 +236,8 @@ def new_announcements():
             out.append((name, conf))
     return out
 
-def days(n):
+def days_ago(date):
+    n = round((date - datetime.now()) / timedelta(days=1))
     return ("1 day" if n == 1 else "{} days".format(n))
 
 def conf_name(conf):
@@ -265,7 +252,7 @@ def make_announcements():
         if delta == 0:
             to_slack("{} dealine! Congrats to everyone who submitted!".format(name))
         else:
-            to_slack("{} is in {}! Good luck {}".format(name, days(delta), who))
+            to_slack("{} is in {}! Good luck {}".format(name, days_ago(conf.when), who))
 
 def start_announcement_thread():
     with DATA.lock():
@@ -329,7 +316,7 @@ class Commands:
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
         DATA.add(conf, when)
-        return Ephemeral("Added {} on {} at {}".format(conf, when.strftime("%d %b"), when.strftime("%H:%M")))
+        return Ephemeral("Added {} on {:%d %b at %H:%M}".format(conf, when))
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
@@ -344,7 +331,7 @@ class Commands:
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
         DATA.modify(conf, when)
-        return Ephemeral("Added {} on {}".format(conf, when.strftime("%d %b at %H:%M")))
+        return Ephemeral("Added {} on {:%d %b at %H:%M}".format(conf, when))
 
     @command("modify", ["conf"], ["date"], ["time"])
     def modify(conf, date, time):
@@ -356,7 +343,7 @@ class Commands:
         """When is a conference?"""
         conf = conf_name(conf)
         when = DATA.when(conf, datetime.now())
-        return Ephemeral("{} is on {}".format(conf, when.strftime("%d %b at %H:%M")))
+        return Ephemeral("{} is on {:%d %b at %H:%M} ({})".format(conf, when, days_ago(when)))
 
     @command("who", ["conf"])
     def who(conf):
@@ -370,10 +357,8 @@ class Commands:
         """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.now())
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {} ({})".format(
-                name, conf.when.strftime("%d %b at %H:%M"), days(round((conf.when - datetime.now()) / timedelta(days=1)))
-            ) for name, conf in upcoming
-        ]))
+            "{} on {:%d %b at %H:%M} ({})".format(name, conf.when, days_ago(conf.when))
+            for name, conf in upcoming]))
 
     @command("announce", ["conf"], public=True)
     def announce(conf):
@@ -388,7 +373,7 @@ class Commands:
         conf = conf_name(conf)
         when = DATA.when(conf, datetime.now())
         to_sign("countdown.py.tmpl", conference=conf, time=when)
-        return Ephemeral("{} on {} ({}) sent to sign!".format(conf, when.strftime("%d %b at %H:%M"), days(round((when - datetime.now()) / timedelta(days=1)))))
+        return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, when, days_ago(when)))
 
     @command("help")
     def help():
