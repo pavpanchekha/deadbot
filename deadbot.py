@@ -153,6 +153,12 @@ class Deadlines:
         self.deadlines[name][i] = self.un_tz(Conference(when, conf.who, conf.announcements))
         self.save()
 
+    def remove(self, name, when):
+        conf = self.get_conf(name, when)
+        i = self.deadlines[name].index(conf)
+        del self.deadlines[name][i]
+        self.save()
+
     def who(self, name, when):
         return self.get_conf(name, when).who
 
@@ -337,6 +343,17 @@ class Commands:
     def modify(conf, date, time):
         """Change when a conference is"""
         return Commands.modify_tz(conf, date, time, "PT")
+
+    @command("remove", ["conf"])
+    def remove(conf):
+        """Delete a conference is"""
+        conf = conf_name(conf)
+        now = datetime.now()
+        who = DATA.who(conf, now)
+        when = DATA.when(conf, now)
+        if who: raise ValueError("Conference {} cannot be removed; {}".format(conf, describe_who(who, conf)))
+        DATA.remove(conf, now)
+        return Ephemeral("Removed {} on {:%d %b at %H:%M} ({})".format(conf, when, days_ago(when)))
 
     @command("when", ["conf"])
     def when(conf):
