@@ -135,6 +135,12 @@ class Deadlines:
         if not confs: raise KeyError("No conference {}".format(name))
         return min(confs, key=lambda x: x.when)
 
+    def get_conf_idx(self, name, when):
+        opts = self.deadlines.get(name, [])
+        confs = [(i, self.tz(conf)) for i, conf in enumerate(opts) if when < conf.when]
+        if not confs: raise KeyError("No conference {}".format(name))
+        return min(confs, key=lambda x: x[1].when)
+
     def set(self, name, when, uid):
         self.get_conf(name, when).who.add(uid)
         self.save()
@@ -148,15 +154,13 @@ class Deadlines:
         self.save()
 
     def modify(self, name, when):
-        conf = self.get_conf(name, when)
-        i = self.deadlines[name].index(conf)
-        self.deadlines[name][i] = self.un_tz(Conference(when, conf.who, conf.announcements))
+        idx, conf = self.get_conf(name, when)
+        self.deadlines[name][idx] = self.un_tz(Conference(when, conf.who, conf.announcements))
         self.save()
 
     def remove(self, name, when):
-        conf = self.get_conf(name, when)
-        i = self.deadlines[name].index(conf)
-        del self.deadlines[name][i]
+        idx, conf = self.get_conf_idx(name, when)
+        del self.deadlines[name][idx]
         self.save()
 
     def who(self, name, when):
