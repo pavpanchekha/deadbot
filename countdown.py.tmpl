@@ -49,7 +49,7 @@ if __name__ == '__main__':
     while True:
         delta = max(0, when - unix_now())
         d = int(delta // 86400)
-        h = int(delta // 3600) % 24
+        h = int(delta // 3600) % 48
         m = int(delta // 60) % 60
         s = int(delta) % 60
 
