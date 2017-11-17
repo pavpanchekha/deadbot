@@ -49,14 +49,16 @@ if __name__ == '__main__':
     while True:
         delta = max(0, when - unix_now())
         d = int(delta // 86400)
-        h = int(delta // 3600) % 48
+        h = int(delta // 3600) % 24
         m = int(delta // 60) % 60
         s = int(delta) % 60
 
         if d >= 2:
             countdown = '%dd %02dh' % (d, h)
+        elif d == 0 and h == 0:
+            countdown = "%dm %02ds" % (m, s)
         else:
-            countdown = '%02d:%02d' % (h, m)
+            countdown = '%02d:%02d' % (h + 24*d, m)
 
         countdown_text = CenteredText(D, ts, pal, 8, 16, countdown)
         stack[1].set(countdown_text)
