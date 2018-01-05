@@ -225,7 +225,7 @@ def lookup_tz(tz):
             "CT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=2*3600),
             "ET": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3*3600),
             "AOE": timedelta(seconds=-12 * 3600),
-        }[tz]
+        }[tz.upper()]
         return timedelta(seconds=round(offset.total_seconds()))
 
 def new_announcements():
