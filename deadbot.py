@@ -326,7 +326,7 @@ class Commands:
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
         DATA.add(conf, when)
-        return Ephemeral("Added {} on {:%d %b at %H:%M}".format(conf, when))
+        return Response("Added {} on {:%d %b at %H:%M}".format(conf, when))
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
@@ -341,7 +341,7 @@ class Commands:
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
         DATA.modify(conf, when)
-        return Ephemeral("Added {} on {:%d %b at %H:%M}".format(conf, when))
+        return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
 
     @command("modify", ["conf"], ["date"], ["time"])
     def modify(conf, date, time):
