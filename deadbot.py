@@ -154,7 +154,7 @@ class Deadlines:
         self.save()
 
     def modify(self, name, when):
-        idx, conf = self.get_conf(name, when)
+        idx, conf = self.get_conf_idx(name, when)
         self.deadlines[name][idx] = self.un_tz(Conference(when, conf.who, conf.announcements))
         self.save()
 
