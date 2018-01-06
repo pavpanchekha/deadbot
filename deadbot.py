@@ -153,9 +153,9 @@ class Deadlines:
         self.deadlines.setdefault(name, []).append(self.un_tz(Conference(when, set(), [])))
         self.save()
 
-    def modify(self, name, when):
-        idx, conf = self.get_conf_idx(name, when)
-        self.deadlines[name][idx] = self.un_tz(Conference(when, conf.who, conf.announcements))
+    def modify(self, name, old_when, new_when):
+        idx, conf = self.get_conf_idx(name, old_when)
+        self.deadlines[name][idx] = self.un_tz(Conference(new_when, conf.who, conf.announcements))
         self.save()
 
     def remove(self, name, when):
@@ -340,7 +340,7 @@ class Commands:
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz) - lookup_tz("PT")
         when -= offset
-        DATA.modify(conf, when)
+        DATA.modify(conf, datetime.now(), when)
         return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
 
     @command("modify", ["conf"], ["date"], ["time"])
