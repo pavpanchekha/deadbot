@@ -24,6 +24,7 @@ def to_slack(msg : str):
             raise IOError("Scary reponse from Slack", res)
 
 def to_sign(file, **args):
+    raise NotImplemented("`/deadline sign` is currently broken as we transition to virtual signs")
     with open(file, "rt") as f:
         code = f.read().format(**args)
     URL = "http://plseaudio.cs.washington.edu:8082/run"
