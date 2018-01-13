@@ -12,8 +12,7 @@ import os
 import threading
 import contextlib
 
-HOOK = "https://hooks.slack.com/services/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"
-TOKEN = "NZLjPrrU9rlVvdHsrILIsD4J"
+from _secret import HOOK, TOKEN
 
 def to_slack(msg : str):
     req = urllib.request.Request(HOOK, data=json.dumps({"text": msg}).encode("utf-8"), headers={"Content-Type": "application/json"}, method="POST")
