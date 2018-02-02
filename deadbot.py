@@ -23,9 +23,10 @@ def to_slack(msg : str):
             raise IOError("Scary reponse from Slack", res)
 
 def to_sign(conf, time):
-    data = urllib.parse.urlencode({ 'what': conf 'when': '{:%Y-%m-%d %H:%M:%S %z}'.format(time) })
+    data = urllib.parse.urlencode({ 'what': conf, 'when': '{:%Y-%m-%d %H:%M:%S GMT-0000}'.format(time) })
     URL = "http://plseaudio.cs.washington.edu:8087/deadline"
-    req = urllib.request.Request(url=URL, data=code.encode("utf-8"), method="POST")
+    print(data)
+    req = urllib.request.Request(url=URL, data=data.encode("utf-8"), method="POST")
     with urllib.request.urlopen(req, timeout=15) as res:
         if res.getcode() == 200:
             return
@@ -51,6 +52,7 @@ class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
 
+        self.send_response(200)
 
         self.send_header("Content-Type", "application/json")
         self.end_headers()
