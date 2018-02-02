@@ -22,12 +22,19 @@ def to_slack(msg : str):
         else:
             raise IOError("Scary reponse from Slack", res)
 
-def to_sign(file, **args):
-    raise NotImplemented("`/deadline sign` is currently broken as we transition to virtual signs")
-    with open(file, "rt") as f:
-        code = f.read().format(**args)
-    URL = "http://plseaudio.cs.washington.edu:8082/run"
-    req = urllib.request.Request(url=URL, data=code.encode("utf-8"), method="PUT")
+def to_sign(conf, time):
+    data = urllib.parse.urlencode({ 'what': conf 'when': '{:%Y-%m-%d %H:%M:%S %z}'.format(time) })
+    URL = "http://plseaudio.cs.washington.edu:8087/deadline"
+    req = urllib.request.Request(url=URL, data=code.encode("utf-8"), method="POST")
+    with urllib.request.urlopen(req, timeout=15) as res:
+        if res.getcode() == 200:
+            return
+        else:
+            raise IOError("Scary reponse from PLSE Sign", res)
+
+def to_unsign():
+    URL = "http://plseaudio.cs.washington.edu:8087/restore_clock"
+    req = urllib.request.Request(url=URL, data=b"", method="POST")
     with urllib.request.urlopen(req, timeout=15) as res:
         if res.getcode() == 200:
             return
@@ -44,7 +51,7 @@ class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        self.send_response(200)
+
         self.send_header("Content-Type", "application/json")
         self.end_headers()
 
@@ -393,8 +400,14 @@ class Commands:
         """Announce who is submitting to a conference"""
         conf = conf_name(conf)
         when = DATA.when(conf, datetime.now())
-        to_sign("countdown.py.tmpl", conference=conf, time=when)
+        to_sign(conf, when)
         return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, when, days_ago(when)))
+
+    @command("sign")
+    def sign():
+        """Announce who is submitting to a conference"""
+        to_unsign()
+        return Ephemeral("Sign restored")
 
     @command("help")
     def help():
