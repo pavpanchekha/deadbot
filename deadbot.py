@@ -1,4 +1,5 @@
 
+import math
 import urllib.request
 import http.server
 import json
@@ -23,9 +24,8 @@ def to_slack(msg : str):
             raise IOError("Scary reponse from Slack", res)
 
 def to_sign(conf, time):
-    data = urllib.parse.urlencode({ 'what': conf, 'when': '{:%Y-%m-%d %H:%M:%S GMT-0000}'.format(time) })
+    data = urllib.parse.urlencode({ 'what': conf, 'when': '{:%Y-%m-%d %H:%M:%S GMT-0900}'.format(time) })
     URL = "http://plseaudio.cs.washington.edu:8087/deadline"
-    print(data)
     req = urllib.request.Request(url=URL, data=data.encode("utf-8"), method="POST")
     with urllib.request.urlopen(req, timeout=15) as res:
         if res.getcode() == 200:
@@ -266,10 +266,10 @@ def make_announcements():
     now = datetime.now()
     for name, conf in new_announcements():
         print("Announcing", name, "on", conf.when)
-        delta = round((conf.when - now) / timedelta(days=1))
+        delta = math.ceil((conf.when - now) / timedelta(days=1))
         who = ", ".join(["<@{}>".format(uid) for uid in conf.who])
         if delta == 0:
-            to_slack("{} dealine! Congrats to everyone who submitted!".format(name))
+            to_slack("{} deadline! Congrats to everyone who submitted!".format(name))
         else:
             to_slack("{} is in {}! Good luck {}".format(name, days_ago(conf.when), who))
 
