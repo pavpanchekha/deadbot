@@ -1,3 +1,4 @@
+#!/bin/python3
 
 import math
 import urllib.request
@@ -119,9 +120,6 @@ class Deadlines:
         self.deadlines = None
         self._lock.release()
 
-    def un_tz(self, conf):
-        return Conference(conf.when - lookup_tz("PT"), conf.who, conf.announcements)
-
     def tz(self, conf):
         return Conference(conf.when + lookup_tz("PT"), conf.who, conf.announcements)
 
@@ -159,12 +157,12 @@ class Deadlines:
         self.save()
 
     def add(self, name, when):
-        self.deadlines.setdefault(name, []).append(self.un_tz(Conference(when, set(), [])))
+        self.deadlines.setdefault(name, []).append(Conference(when, set(), []))
         self.save()
 
     def modify(self, name, old_when, new_when):
         idx, conf = self.get_conf_idx(name, old_when)
-        self.deadlines[name][idx] = self.un_tz(Conference(new_when, conf.who, conf.announcements))
+        self.deadlines[name][idx] = Conference(new_when, conf.who, conf.announcements)
         self.save()
 
     def remove(self, name, when):
@@ -332,9 +330,8 @@ class Commands:
         """Add a conference"""
         conf = conf_name(conf)
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
-        offset = lookup_tz(tz) - lookup_tz("PT")
-        when -= offset
-        DATA.add(conf, when)
+        offset = lookup_tz(tz)
+        DATA.add(conf, when - offset)
         return Response("Added {} on {:%d %b at %H:%M}".format(conf, when))
 
     @command("add", ["conf"], ["date"], ["time"])
@@ -347,8 +344,7 @@ class Commands:
         """Change when a conference is"""
         conf = conf_name(conf)
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
-        offset = lookup_tz(tz) - lookup_tz("PT")
-        when -= offset
+        offset = lookup_tz(tz)
         DATA.modify(conf, datetime.now(), when)
         return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
 
