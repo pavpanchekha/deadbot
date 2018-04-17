@@ -120,9 +120,6 @@ class Deadlines:
         self.deadlines = None
         self._lock.release()
 
-    def tz(self, conf):
-        return Conference(conf.when + lookup_tz("PT"), conf.who, conf.announcements)
-
     def unlocked(self):
         return not self.deadlines
 
@@ -138,15 +135,15 @@ class Deadlines:
 
     def get_conf(self, name, when):
         opts = self.deadlines.get(name, [])
-        confs = [self.tz(conf) for conf in opts if when < conf.when]
+        confs = [conf for conf in opts if when < conf.when]
         if not confs: raise KeyError("No conference {}".format(name))
-        return min(confs, key=lambda x: x.when)
+        return self.tz(min(confs, key=lambda x: x.when))
 
     def get_conf_idx(self, name, when):
         opts = self.deadlines.get(name, [])
-        confs = [(i, self.tz(conf)) for i, conf in enumerate(opts) if when < conf.when]
+        confs = [(i, conf) for i, conf in enumerate(opts) if when < conf.when]
         if not confs: raise KeyError("No conference {}".format(name))
-        return min(confs, key=lambda x: x[1].when)
+        return self.tz(min(confs, key=lambda x: x[1].when))
 
     def set(self, name, when, uid):
         self.get_conf(name, when).who.add(uid)
@@ -179,7 +176,7 @@ class Deadlines:
     def upcoming(self, when):
         out = []
         for name, opts in self.deadlines.items():
-            confs = list(filter(lambda conf: when < conf.when, map(self.tz, opts)))
+            confs = list(filter(lambda conf: when < conf.when, opts))
             if confs:
                 out.append((name, min(confs, key=lambda x: x.when)))
         return sorted(out, key=lambda x: x[1].when)
@@ -188,7 +185,7 @@ class Deadlines:
         out = []
         for name, opts in self.deadlines.items():
             for opt in opts:
-                out.append((name, self.tz(opt)))
+                out.append((name, opt))
         return out
 
 DATA = Deadlines()
@@ -236,7 +233,7 @@ def lookup_tz(tz):
         return timedelta(seconds=round(offset.total_seconds()))
 
 def new_announcements():
-    now = datetime.now()
+    now = datetime.utcnow()
     announce_days = [28, 21, 14, 7, 6, 5, 4, 3, 2, 1, 0]
     out = []
     for name, conf in DATA.all():
@@ -254,14 +251,14 @@ def new_announcements():
     return out
 
 def days_ago(date):
-    n = round((date - datetime.now()) / timedelta(days=1))
+    n = round((date - datetime.utcnow()) / timedelta(days=1))
     return ("1 day" if n == 1 else "{} days".format(n))
 
 def conf_name(conf):
     return conf.upper() if conf.islower() else conf
 
 def make_announcements():
-    now = datetime.now()
+    now = datetime.utcnow()
     for name, conf in new_announcements():
         print("Announcing", name, "on", conf.when)
         delta = math.ceil((conf.when - now) / timedelta(days=1))
@@ -299,7 +296,7 @@ class Commands:
         """Declare that you are submitting to a conference"""
         conf = conf_name(conf)
         try:
-            DATA.set(conf, datetime.now(), uid)
+            DATA.set(conf, datetime.utcnow(), uid)
             return Response("Good luck, <@{}>, on {}!".format(uid, conf))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
@@ -310,7 +307,7 @@ class Commands:
         uid = parse_uid(user)
         conf = conf_name(conf)
         try:
-            DATA.unset(conf, datetime.now(), uid)
+            DATA.unset(conf, datetime.utcnow(), uid)
             return Ephemeral("Sorry to hear that.")
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
@@ -320,7 +317,7 @@ class Commands:
         """Declare that you are no longer submitting to a conference"""
         conf = conf_name(conf)
         try:
-            DATA.unset(conf, datetime.now(), uid)
+            DATA.unset(conf, datetime.utcnow(), uid)
             return Ephemeral("Patience is bitter, but its fruit is sweet, <@{}>!".format(uid, conf))
         except ValueError:
             return Ephemeral("Conference {} does not yet exit. Please `/deadline add` it.".format(conf))
@@ -345,7 +342,7 @@ class Commands:
         conf = conf_name(conf)
         when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
         offset = lookup_tz(tz)
-        DATA.modify(conf, datetime.now(), when)
+        DATA.modify(conf, datetime.utcnow(), when - offset)
         return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
 
     @command("modify", ["conf"], ["date"], ["time"])
@@ -357,7 +354,7 @@ class Commands:
     def remove(conf):
         """Delete a conference is"""
         conf = conf_name(conf)
-        now = datetime.now()
+        now = datetime.utcnow()
         who = DATA.who(conf, now)
         when = DATA.when(conf, now)
         if who: raise ValueError("Conference {} cannot be removed; {}".format(conf, describe_who(who, conf)))
@@ -368,36 +365,38 @@ class Commands:
     def when(conf):
         """When is a conference?"""
         conf = conf_name(conf)
-        when = DATA.when(conf, datetime.now())
-        return Ephemeral("{} is on {:%d %b at %H:%M} ({})".format(conf, when, days_ago(when)))
+        when = DATA.when(conf, datetime.utcnow())
+        offset = lookup_tz("PT")
+        return Ephemeral("{} is on {:%d %b at %H:%M} ({})".format(conf, when + offset, days_ago(when)))
 
     @command("who", ["conf"])
     def who(conf):
         """Who is submitting to a conference?"""
         conf = conf_name(conf)
-        who = DATA.who(conf, datetime.now())
+        who = DATA.who(conf, datetime.utcnow())
         return Ephemeral(describe_who(who, conf))
 
     @command("upcoming", public=True)
     def upcoming():
         """List upcoming deadlines"""
-        upcoming = DATA.upcoming(datetime.now())
+        upcoming = DATA.upcoming(datetime.utcnow())
+        offset = lookup_tz("PT")
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {:%d %b at %H:%M} ({})".format(name, conf.when, days_ago(conf.when))
+            "{} on {:%d %b at %H:%M} ({})".format(name, conf.when + offset, days_ago(conf.when))
             for name, conf in upcoming]))
 
     @command("announce", ["conf"], public=True)
     def announce(conf):
         """Announce who is submitting to a conference"""
         conf = conf_name(conf)
-        who = DATA.who(conf, datetime.now())
+        who = DATA.who(conf, datetime.utcnow())
         return Response(describe_who(who, conf))
 
     @command("sign", ["conf"], public=True)
     def sign(conf):
         """Announce who is submitting to a conference"""
         conf = conf_name(conf)
-        when = DATA.when(conf, datetime.now())
+        when = DATA.when(conf, datetime.utcnow()) # TODO: offset
         to_sign(conf, when)
         return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, when, days_ago(when)))
 
