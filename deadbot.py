@@ -137,13 +137,13 @@ class Deadlines:
         opts = self.deadlines.get(name, [])
         confs = [conf for conf in opts if when < conf.when]
         if not confs: raise KeyError("No conference {}".format(name))
-        return self.tz(min(confs, key=lambda x: x.when))
+        return min(confs, key=lambda x: x.when)
 
     def get_conf_idx(self, name, when):
         opts = self.deadlines.get(name, [])
         confs = [(i, conf) for i, conf in enumerate(opts) if when < conf.when]
         if not confs: raise KeyError("No conference {}".format(name))
-        return self.tz(min(confs, key=lambda x: x[1].when))
+        return min(confs, key=lambda x: x[1].when)
 
     def set(self, name, when, uid):
         self.get_conf(name, when).who.add(uid)
