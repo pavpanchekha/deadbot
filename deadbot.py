@@ -199,7 +199,11 @@ class Deadlines:
 DATA = Deadlines()
 
 def describe_who(who, conf):
-    return ", ".join(["<@{}>".format(name) for name in who]) + " " + ("are" if len(who) > 1 else "is") + " submitting to " + conf_name(conf)
+    if who:
+        names = ", ".join(["<@{}>".format(name) for name in who])
+    else:
+        names = "No one"
+    return names + " " + ("are" if len(who) > 1 else "is") + " submitting to " + conf_name(conf)
 
 def parse_uid(user):
     assert user[0] == "<"
@@ -388,7 +392,7 @@ class Commands:
     def upcoming():
         """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.utcnow())
-        return Response("The following deadlines are coming up: " + "\n".join([
+        return Response("The following deadlines are coming up:\n" + "\n".join([
             "• {} on {}".format(name, print_utcdate(conf.when))
             for name, conf in upcoming]))
 
