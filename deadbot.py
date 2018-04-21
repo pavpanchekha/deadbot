@@ -339,7 +339,7 @@ class Commands:
         conf = conf_name(conf)
         when = parse_date(date + " " + time)
         DATA.add(conf, when)
-        return Response("Added {} on {:%d %b at %H:%M}".format(conf, when))
+        return Response("Added {} on {}".format(conf, print_utcdate(when)))
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
@@ -352,7 +352,7 @@ class Commands:
         conf = conf_name(conf)
         when = parse_date(date + " " + time)
         DATA.modify(conf, datetime.utcnow(), when)
-        return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
+        return Response("Set {} to be on {}".format(conf, print_utcdate(when)))
 
     @command("modify", ["conf"], ["date"], ["time"])
     def modify(conf, date, time):
@@ -389,7 +389,7 @@ class Commands:
         """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.utcnow())
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {:%d %b at %H:%M} ({})".format(name, print_utcdate(conf.when))
+            "{} on {}".format(name, print_utcdate(conf.when))
             for name, conf in upcoming]))
 
     @command("announce", ["conf"], public=True)
@@ -405,7 +405,7 @@ class Commands:
         conf = conf_name(conf)
         when = DATA.when(conf, datetime.utcnow())
         to_sign(conf, when)
-        return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, print_utcdate(when)))
+        return Ephemeral("{} on {} sent to sign!".format(conf, print_utcdate(when)))
 
     @command("sign")
     def sign():
