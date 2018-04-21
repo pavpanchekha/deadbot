@@ -266,8 +266,7 @@ def conf_name(conf):
     return conf.upper() if conf.islower() else conf
 
 def print_utcdate(date):
-    date = to_local(date)
-    return "{:%d %b at %H:%M} ({})".format(date, days_ago(date))
+    return "{:%d %b at %H:%M} ({})".format(arrow.get(date).to("US/Pacific"), days_ago(date))
 
 def make_announcements():
     now = datetime.utcnow()
@@ -278,7 +277,7 @@ def make_announcements():
         if delta == 0:
             to_slack("{} deadline! Congrats to everyone who submitted!".format(name))
         else:
-            to_slack("{} is in {}! Good luck {}".format(name, days_ago(to_local(conf.when)), who))
+            to_slack("{} is in {}! Good luck {}".format(name, days_ago(conf.when), who))
 
 def start_announcement_thread():
     with DATA.lock():
