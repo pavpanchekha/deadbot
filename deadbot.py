@@ -8,6 +8,7 @@ import codecs
 import shlex
 import argparse
 from datetime import datetime, timedelta
+import arrow
 import collections
 import pickle
 import os
@@ -25,7 +26,7 @@ def to_slack(msg : str):
             raise IOError("Scary reponse from Slack", res)
 
 def to_sign(conf, time):
-    data = urllib.parse.urlencode({ 'what': conf, 'when': '{:%Y-%m-%d %H:%M:%S GMT-0000}'.format(time - lookup_tz("PT")) })
+    data = urllib.parse.urlencode({ 'what': conf, 'when': '{:%Y-%m-%d %H:%M:%S GMT-0000}'.format(time) })
     URL = "http://plseaudio.cs.washington.edu:8087/deadline"
     req = urllib.request.Request(url=URL, data=data.encode("utf-8"), method="POST")
     with urllib.request.urlopen(req, timeout=15) as res:
@@ -42,6 +43,13 @@ def to_unsign():
             return
         else:
             raise IOError("Scary reponse from PLSE Sign", res)
+
+def parse_date(date):
+    no_tz = arrow.get(date + " " + time, "YYYY-MM-DD HH:MM")
+    return arrow.get(no_tz.datetime, "US/Pacific").to("utc").datetime
+
+def to_local(date):
+    return arrow.get(date, "US/Pacific").datetime
 
 class DeadlineRequestHandler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
@@ -257,6 +265,10 @@ def days_ago(date):
 def conf_name(conf):
     return conf.upper() if conf.islower() else conf
 
+def print_utcdate(date):
+    date = to_local(date)
+    return "{:%d %b at %H:%M} ({})".format(date, days_ago(date))
+
 def make_announcements():
     now = datetime.utcnow()
     for name, conf in new_announcements():
@@ -266,7 +278,7 @@ def make_announcements():
         if delta == 0:
             to_slack("{} deadline! Congrats to everyone who submitted!".format(name))
         else:
-            to_slack("{} is in {}! Good luck {}".format(name, days_ago(conf.when), who))
+            to_slack("{} is in {}! Good luck {}".format(name, days_ago(to_local(conf.when)), who))
 
 def start_announcement_thread():
     with DATA.lock():
@@ -326,9 +338,8 @@ class Commands:
     def add_tz(conf, date, time, tz):
         """Add a conference"""
         conf = conf_name(conf)
-        when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
-        offset = lookup_tz(tz)
-        DATA.add(conf, when - offset)
+        when = parse_date(date + " " + time)
+        DATA.add(conf, when)
         return Response("Added {} on {:%d %b at %H:%M}".format(conf, when))
 
     @command("add", ["conf"], ["date"], ["time"])
@@ -340,9 +351,8 @@ class Commands:
     def modify_tz(conf, date, time, tz):
         """Change when a conference is"""
         conf = conf_name(conf)
-        when = datetime.strptime(date + " " + time, "%Y-%m-%d %H:%M")
-        offset = lookup_tz(tz)
-        DATA.modify(conf, datetime.utcnow(), when - offset)
+        when = parse_date(date + " " + time)
+        DATA.modify(conf, datetime.utcnow(), when)
         return Response("Set {} to be on {:%d %b at %H:%M}".format(conf, when))
 
     @command("modify", ["conf"], ["date"], ["time"])
@@ -359,15 +369,14 @@ class Commands:
         when = DATA.when(conf, now)
         if who: raise ValueError("Conference {} cannot be removed; {}".format(conf, describe_who(who, conf)))
         DATA.remove(conf, now)
-        return Ephemeral("Removed {} on {:%d %b at %H:%M} ({})".format(conf, when, days_ago(when)))
+        return Ephemeral("Removed {} on {}".format(conf, print_utcdate(when)))
 
     @command("when", ["conf"])
     def when(conf):
         """When is a conference?"""
         conf = conf_name(conf)
         when = DATA.when(conf, datetime.utcnow())
-        offset = lookup_tz("PT")
-        return Ephemeral("{} is on {:%d %b at %H:%M} ({})".format(conf, when + offset, days_ago(when)))
+        return Ephemeral("{} is on {}".format(conf, print_utcdate(when)))
 
     @command("who", ["conf"])
     def who(conf):
@@ -380,9 +389,8 @@ class Commands:
     def upcoming():
         """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.utcnow())
-        offset = lookup_tz("PT")
         return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {:%d %b at %H:%M} ({})".format(name, conf.when + offset, days_ago(conf.when))
+            "{} on {:%d %b at %H:%M} ({})".format(name, print_utcdate(conf.when))
             for name, conf in upcoming]))
 
     @command("announce", ["conf"], public=True)
@@ -396,9 +404,9 @@ class Commands:
     def sign(conf):
         """Announce who is submitting to a conference"""
         conf = conf_name(conf)
-        when = DATA.when(conf, datetime.utcnow()) # TODO: offset
+        when = DATA.when(conf, datetime.utcnow())
         to_sign(conf, when)
-        return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, when, days_ago(when)))
+        return Ephemeral("{} on {:%d %b at %H:%M} ({}) sent to sign!".format(conf, print_utcdate(when)))
 
     @command("sign")
     def sign():
