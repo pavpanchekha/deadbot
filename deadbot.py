@@ -44,9 +44,10 @@ def to_unsign():
         else:
             raise IOError("Scary reponse from PLSE Sign", res)
 
-def parse_date(date):
+def parse_date(date, tz):
+    tz_name = ({ "AOE": "Etc/GMT+12", "PT": "US/Pacific", "ET": "US/Eastern" }).get(tz, tz)
     no_tz = arrow.get(date + " " + time, "YYYY-MM-DD HH:MM")
-    return arrow.get(no_tz.datetime, "US/Pacific").to("utc").datetime
+    return arrow.get(no_tz.datetime, tz).to("utc").datetime
 
 def to_local(date):
     return arrow.get(date, "US/Pacific").datetime
@@ -230,20 +231,6 @@ def command(*pattern, uid=False, public=False):
         return f
     return decorator
 
-def lookup_tz(tz):
-    try:
-        return timedelta(seconds=int(tz)*3600)
-    except ValueError:
-        offset = {
-            # US time zones are hour-aligned; server is in Pacific time zone
-            "PT": (datetime.now() - datetime.utcnow()),
-            "MT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3600),
-            "CT": (datetime.now() - datetime.utcnow()) + timedelta(seconds=2*3600),
-            "ET": (datetime.now() - datetime.utcnow()) + timedelta(seconds=3*3600),
-            "AOE": timedelta(seconds=-12 * 3600),
-        }[tz.upper()]
-        return timedelta(seconds=round(offset.total_seconds()))
-
 def new_announcements():
     now = datetime.utcnow()
     announce_days = [28, 21, 14, 7, 6, 5, 4, 3, 2, 1, 0]
@@ -341,7 +328,7 @@ class Commands:
     def add_tz(conf, date, time, tz):
         """Add a conference"""
         conf = conf_name(conf)
-        when = parse_date(date + " " + time)
+        when = parse_date(date + " " + time, tz)
         DATA.add(conf, when)
         return Response("Added {} on {}.\nDon't forget to `/deadline set` some submitters.".format(conf, print_utcdate(when)))
 
@@ -354,7 +341,7 @@ class Commands:
     def modify_tz(conf, date, time, tz):
         """Change when a conference is"""
         conf = conf_name(conf)
-        when = parse_date(date + " " + time)
+        when = parse_date(date + " " + time, tz)
         DATA.modify(conf, datetime.utcnow(), when)
         return Response("Set {} to be on {}".format(conf, print_utcdate(when)))
 
