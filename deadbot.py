@@ -388,8 +388,8 @@ class Commands:
     def upcoming():
         """List upcoming deadlines"""
         upcoming = DATA.upcoming(datetime.utcnow())
-        return Response("The following deadlines are coming up: " + ", ".join([
-            "{} on {}".format(name, print_utcdate(conf.when))
+        return Response("The following deadlines are coming up: " + "\n".join([
+            "• {} on {}".format(name, print_utcdate(conf.when))
             for name, conf in upcoming]))
 
     @command("announce", ["conf"], public=True)
