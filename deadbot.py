@@ -266,7 +266,7 @@ def conf_name(conf):
     return conf.upper() if conf.islower() else conf
 
 def print_utcdate(date):
-    return "{:%d %b at %H:%M} ({})".format(arrow.get(date).to("US/Pacific"), days_ago(date))
+    return "{:%d %b at %H:%M} ({})".format(arrow.get(date).to("US/Pacific").datetime, days_ago(date))
 
 def make_announcements():
     now = datetime.utcnow()
