@@ -343,7 +343,7 @@ class Commands:
         conf = conf_name(conf)
         when = parse_date(date + " " + time)
         DATA.add(conf, when)
-        return Response("Added {} on {}".format(conf, print_utcdate(when)))
+        return Response("Added {} on {}.\nDon't forget to `/deadline set` some submitters.".format(conf, print_utcdate(when)))
 
     @command("add", ["conf"], ["date"], ["time"])
     def add(conf, date, time):
