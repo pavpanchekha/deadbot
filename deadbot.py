@@ -44,9 +44,9 @@ def to_unsign():
         else:
             raise IOError("Scary reponse from PLSE Sign", res)
 
-def parse_date(date, tz):
+def parse_date(string, tz):
     tz_name = ({ "AOE": "Etc/GMT+12", "PT": "US/Pacific", "ET": "US/Eastern" }).get(tz, tz)
-    no_tz = arrow.get(date + " " + time, "YYYY-MM-DD HH:MM")
+    no_tz = arrow.get(string, "YYYY-MM-DD HH:MM")
     return arrow.get(no_tz.datetime, tz).to("utc").datetime
 
 def to_local(date):
