@@ -47,7 +47,7 @@ def to_unsign():
 def parse_date(string, tz):
     tz_name = ({ "AOE": "Etc/GMT+12", "PT": "US/Pacific", "ET": "US/Eastern" }).get(tz, tz)
     no_tz = arrow.get(string, "YYYY-MM-DD HH:mm")
-    return arrow.get(no_tz.datetime, tz).to("utc").datetime
+    return arrow.get(no_tz.datetime, tz_name).to("utc").datetime
 
 def to_local(date):
     return arrow.get(date, "US/Pacific").datetime
