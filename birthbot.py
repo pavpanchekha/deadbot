@@ -193,7 +193,7 @@ def make_announcements():
     who = new_announcements()
     if who:
         print("Announcing birthdays for", who)
-        to_slack("Happy birthday {}!".format(describe_who(name)))
+        to_slack("Happy birthday {}!".format(describe_who(who)))
 
 def start_announcement_thread():
     with DATA.lock():
