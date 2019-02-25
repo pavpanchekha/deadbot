@@ -254,11 +254,11 @@ class Commands:
         when = Birthdays.next(DATA.get(uid), date.today())
         return Ephemeral("<@{}>'s next birthday is on {}".format(uid, print_date(when)))
 
-    @command("upcoming", public=True)
+    @command("upcoming")
     def upcoming():
         """List upcoming birthdays"""
         upcoming = DATA.upcoming(date.today())
-        return Response("The following birthdays are coming up:\n" + "\n".join([
+        return Ephemeral("The following birthdays are coming up:\n" + "\n".join([
             "• <@{}> on {}".format(name, print_date(when))
             for name, when in upcoming]))
 
