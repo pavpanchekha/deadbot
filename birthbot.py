@@ -242,8 +242,8 @@ class Commands:
         uid = parse_uid(user)
         return Commands.unset(uid)
 
-    @command(["user"], "unset", uid=True)
-    def unset(uid, user):
+    @command("unset", uid=True)
+    def unset(uid):
         """Delete your birthday from the database"""
         return DATA.delete(uid)
 
